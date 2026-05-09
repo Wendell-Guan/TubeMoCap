@@ -1,0 +1,6 @@
+PyQt5>=5.15
+matplotlib>=3.7
+numpy>=1.24
+mediapipe>=0.10
+opencv-python>=4.8
+live2d-py>=0.5
