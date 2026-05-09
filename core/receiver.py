@@ -1,25 +1,14 @@
 """
-OpenSeeFace UDP face receiver.
-OpenSeeFace sends one UDP datagram per tracked face per frame on port 11573 (default).
+Face receiver — supports two backends:
 
-Packet layout (little-endian, 1785 bytes):
-  d        timestamp            (8 B)
-  i        face_id              (4 B)
-  4f       width, height, eye_blink_right, eye_blink_left
-  B        success              (1 B)
-  f        pnp_error            (4 B)
-  4f       quaternion  x,y,z,w
-  3f       euler  pitch,yaw,roll  (degrees)
-  3f       translation  x,y,z
-  68f      per-landmark confidence
-  136f     2-D landmarks  (y,x) x 68
-  210f     3-D points     (x,-y,-z) x 70
-  14f      features: eye_l, eye_r, brow_steep_l, brow_ud_l, brow_quirk_l,
-                     brow_steep_r, brow_ud_r, brow_quirk_r,
-                     mouth_corner_ud_l, mouth_corner_io_l,
-                     mouth_corner_ud_r, mouth_corner_io_r,
-                     mouth_open, mouth_wide
+1. **UDP** (legacy): listens for OpenSeeFace packets on port 11573.
+2. **Camera** (built-in): opens a camera via MediaPipe FaceLandmarker,
+   extracts blendshapes + head rotation, and produces the same FaceData.
+
+The active backend is selected by calling start_udp() or start_camera().
 """
+import math
+import os
 import socket
 import struct
 import threading
@@ -27,6 +16,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional
 
+# ── OpenSeeFace binary format constants ──────────────────────────────
 _FMT  = '<d i 4f B f 4f 3f 3f 68f 136f 210f 14f'
 _SIZE = struct.calcsize(_FMT)   # 1785
 
@@ -68,16 +58,57 @@ class FaceReceiver:
         self._lock = threading.Lock()
         self._thread: Optional[threading.Thread] = None
         self._running = False
+        self._camera_index: int = 0
+        self._error: Optional[str] = None
+        self._mode: str = 'udp'  # 'udp' or 'camera'
+
+    @property
+    def error(self) -> Optional[str]:
+        return self._error
+
+    @property
+    def mode(self) -> str:
+        return self._mode
 
     def start(self):
+        """Start with the current mode (default: udp)."""
         if self._running:
             return
         self._running = True
-        self._thread = threading.Thread(target=self._recv_loop, daemon=True, name='FaceReceiver')
+        self._error = None
+        if self._mode == 'camera':
+            self._thread = threading.Thread(target=self._camera_loop, daemon=True, name='FaceCam')
+        else:
+            self._thread = threading.Thread(target=self._recv_loop, daemon=True, name='FaceUDP')
         self._thread.start()
+
+    def start_camera(self, camera_index: int = 0):
+        """Stop any running backend and switch to built-in camera mode."""
+        self.stop()
+        time.sleep(0.3)
+        self._camera_index = camera_index
+        self._mode = 'camera'
+        # Probe camera from calling thread to trigger macOS permission dialog
+        try:
+            import cv2
+            _probe = cv2.VideoCapture(camera_index)
+            _probe.release()
+        except Exception:
+            pass
+        self.start()
+
+    def start_udp(self):
+        """Stop any running backend and switch to UDP (OpenSeeFace) mode."""
+        self.stop()
+        time.sleep(0.3)
+        self._mode = 'udp'
+        self.start()
 
     def stop(self):
         self._running = False
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=2.0)
+        self._thread = None
 
     def get(self) -> Optional[FaceData]:
         with self._lock:
@@ -88,8 +119,14 @@ class FaceReceiver:
             return None
         return d
 
+    def inject(self, data: FaceData):
+        with self._lock:
+            self._latest = data
+
     def is_active(self) -> bool:
         return self.get() is not None
+
+    # ── UDP backend (OpenSeeFace) ────────────────────────────────────
 
     def _recv_loop(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -112,6 +149,133 @@ class FaceReceiver:
         finally:
             sock.close()
 
+    # ── Camera backend (MediaPipe FaceLandmarker) ────────────────────
+
+    def _camera_loop(self):
+        try:
+            import cv2
+            import mediapipe as mp
+            from mediapipe.tasks import python as mp_python
+            from mediapipe.tasks.python import vision as mp_vision
+        except ImportError as e:
+            self._error = f"Missing dependency: {e}"
+            self._running = False
+            return
+
+        model_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            'models', 'face_landmarker.task'
+        )
+        if not os.path.exists(model_path):
+            self._error = f"Face model not found: {model_path}"
+            self._running = False
+            return
+
+        base_options = mp_python.BaseOptions(
+            model_asset_path=model_path,
+            delegate=mp_python.BaseOptions.Delegate.CPU,
+        )
+        options = mp_vision.FaceLandmarkerOptions(
+            base_options=base_options,
+            running_mode=mp_vision.RunningMode.VIDEO,
+            output_face_blendshapes=True,
+            output_facial_transformation_matrixes=True,
+            num_faces=1,
+            min_face_detection_confidence=0.5,
+            min_face_presence_confidence=0.5,
+            min_tracking_confidence=0.5,
+        )
+
+        cap = cv2.VideoCapture(self._camera_index)
+        if not cap.isOpened():
+            self._error = f"Cannot open camera {self._camera_index}"
+            self._running = False
+            return
+
+        try:
+            with mp_vision.FaceLandmarker.create_from_options(options) as landmarker:
+                while self._running:
+                    ret, frame = cap.read()
+                    if not ret:
+                        time.sleep(0.01)
+                        continue
+                    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+                    timestamp_ms = int(time.time() * 1000)
+                    result = landmarker.detect_for_video(mp_image, timestamp_ms)
+
+                    if not result.face_blendshapes or not result.facial_transformation_matrixes:
+                        continue
+
+                    face = _parse_mediapipe_result(result)
+                    if face:
+                        with self._lock:
+                            self._latest = face
+        except Exception as e:
+            self._error = str(e)
+        finally:
+            cap.release()
+            self._running = False
+
+
+def _parse_mediapipe_result(result) -> Optional[FaceData]:
+    """Convert MediaPipe FaceLandmarker output to FaceData."""
+    bs_list = result.face_blendshapes[0]
+    bs = {b.category_name: b.score for b in bs_list}
+
+    # Head rotation from the 4x4 transformation matrix
+    mat = result.facial_transformation_matrixes[0]
+    pitch, yaw, roll = _rotation_matrix_to_euler(mat)
+
+    eye_l = 1.0 - bs.get('eyeBlinkLeft', 0.0)
+    eye_r = 1.0 - bs.get('eyeBlinkRight', 0.0)
+
+    brow_l = (bs.get('browOuterUpLeft', 0.0) + bs.get('browInnerUp', 0.0) * 0.5
+              - bs.get('browDownLeft', 0.0))
+    brow_r = (bs.get('browOuterUpRight', 0.0) + bs.get('browInnerUp', 0.0) * 0.5
+              - bs.get('browDownRight', 0.0))
+    brow_l = max(-1.0, min(1.0, brow_l))
+    brow_r = max(-1.0, min(1.0, brow_r))
+
+    mouth_open = bs.get('jawOpen', 0.0)
+
+    smile = (bs.get('mouthSmileLeft', 0.0) + bs.get('mouthSmileRight', 0.0)) * 0.5
+    frown = (bs.get('mouthFrownLeft', 0.0) + bs.get('mouthFrownRight', 0.0)) * 0.5
+    mouth_form = max(-1.0, min(1.0, (smile - frown) * 2.0))
+
+    return FaceData(
+        pitch=pitch, yaw=yaw, roll=roll,
+        eye_l=max(0.0, min(1.0, eye_l)),
+        eye_r=max(0.0, min(1.0, eye_r)),
+        brow_l=brow_l, brow_r=brow_r,
+        mouth_open=max(0.0, min(1.0, mouth_open)),
+        mouth_form=mouth_form,
+        conf=0.9,
+        success=True,
+        timestamp=time.time(),
+    )
+
+
+def _rotation_matrix_to_euler(mat) -> tuple:
+    """Extract pitch, yaw, roll (degrees) from a 4x4 transformation matrix."""
+    import numpy as np
+    m = np.array(mat).reshape(4, 4) if not hasattr(mat, 'shape') else mat
+    r = m[:3, :3]
+
+    sy = math.sqrt(r[0, 0] ** 2 + r[1, 0] ** 2)
+    if sy > 1e-6:
+        pitch = math.atan2(r[2, 1], r[2, 2])
+        yaw   = math.atan2(-r[2, 0], sy)
+        roll  = math.atan2(r[1, 0], r[0, 0])
+    else:
+        pitch = math.atan2(-r[1, 2], r[1, 1])
+        yaw   = math.atan2(-r[2, 0], sy)
+        roll  = 0.0
+
+    return (math.degrees(pitch), math.degrees(yaw), math.degrees(roll))
+
+
+# ── OpenSeeFace packet parser (unchanged) ────────────────────────────
 
 def _parse_packet(data: bytes) -> Optional[FaceData]:
     try:
@@ -143,7 +307,7 @@ def _parse_packet(data: bytes) -> Optional[FaceData]:
         brow_l=brow_l, brow_r=brow_r,
         mouth_open=max(0.0, min(1.0, feat_mouth_open)),
         mouth_form=mouth_form,
-        conf=0.9,  # OpenSeeFace doesn't expose per-frame conf easily; use placeholder
+        conf=0.9,
         success=True,
         timestamp=time.time(),
     )

@@ -123,7 +123,10 @@ class OpenGLCanvas(QOpenGLWidget):
         self._vbo, self._uvbo = create_vbos(vertices, uvs)
 
     def __create_canvas_framebuffer(self):
-        self._canvas_framebuffer, self._canvas_texture = create_canvas_framebuffer(self.width(), self.height())
+        ratio = self.devicePixelRatioF()
+        self._canvas_framebuffer, self._canvas_texture = create_canvas_framebuffer(
+            int(self.width() * ratio), int(self.height() * ratio)
+        )
 
     def __draw_on_canvas(self):
         old_fbo = GL.glGetIntegerv(GL.GL_FRAMEBUFFER_BINDING)
@@ -139,7 +142,8 @@ class OpenGLCanvas(QOpenGLWidget):
         self.on_init()
 
     def resizeGL(self, w, h):
-        self.on_resize(w, h)
+        ratio = self.devicePixelRatioF()
+        self.on_resize(int(w * ratio), int(h * ratio))
 
     def paintGL(self):
         # 先绘制到 canvas buffer

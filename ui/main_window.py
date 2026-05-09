@@ -22,11 +22,11 @@ class MainWindow(QMainWindow):
 
         # Core objects
         self.face_rx = FaceReceiver()
-        self.body_rx = BodyReceiver(camera_index=1)
+        self.body_rx = BodyReceiver(camera_index=0)
         self.recorder = Recorder(self.face_rx, self.body_rx)
         self.dataset = Dataset('dataset')
 
-        # Start face receiver immediately
+        # Start UDP listener for OpenSeeFace (fallback, non-blocking)
         self.face_rx.start()
 
         # Build UI
@@ -89,6 +89,9 @@ class MainWindow(QMainWindow):
         if self.face_rx.is_active():
             self._face_status.setText('脸部: ● 已连接')
             self._face_status.setStyleSheet('color: #2ecc71')
+        elif self.face_rx.error:
+            self._face_status.setText(f'脸部: ✗ {self.face_rx.error[:40]}')
+            self._face_status.setStyleSheet('color: #e67e22')
         else:
             self._face_status.setText('脸部: ○ 未连接')
             self._face_status.setStyleSheet('color: #e74c3c')

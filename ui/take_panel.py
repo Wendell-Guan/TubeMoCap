@@ -117,12 +117,25 @@ class TakePanel(QWidget):
         mode_row.addStretch()
         rec_layout.addLayout(mode_row)
 
+        face_row = QHBoxLayout()
+        face_row.addWidget(QLabel('脸部摄像头:'))
+        self._face_cam_combo = QComboBox()
+        for i in range(5):
+            self._face_cam_combo.addItem(f'摄像头 {i}', i)
+        self._face_cam_combo.setCurrentIndex(0)
+        self._btn_start_face = QPushButton('启动')
+        self._btn_start_face.clicked.connect(self._on_start_face)
+        face_row.addWidget(self._face_cam_combo)
+        face_row.addWidget(self._btn_start_face)
+        face_row.addStretch()
+        rec_layout.addLayout(face_row)
+
         body_row = QHBoxLayout()
         body_row.addWidget(QLabel('身体摄像头:'))
         self._cam_combo = QComboBox()
         for i in range(5):
             self._cam_combo.addItem(f'摄像头 {i}', i)
-        self._cam_combo.setCurrentIndex(1)
+        self._cam_combo.setCurrentIndex(0)
         self._cam_combo.currentIndexChanged.connect(self._on_cam_changed)
         self._btn_start_body = QPushButton('启动')
         self._btn_start_body.clicked.connect(self._on_start_body)
@@ -214,6 +227,26 @@ class TakePanel(QWidget):
         idx = self._cam_combo.currentData()
         self.body_rx.set_camera(idx)
 
+    def _on_start_face(self):
+        if self.face_rx.mode == 'camera' and self.face_rx._running:
+            self.face_rx.stop()
+            self.face_rx.start_udp()
+            self._btn_start_face.setText('启动')
+        else:
+            idx = self._face_cam_combo.currentData()
+            self.face_rx.start_camera(idx)
+            self._btn_start_face.setText('停止')
+            QTimer.singleShot(2000, self._check_face_error)
+
+    def _check_face_error(self):
+        if self.face_rx.error:
+            self._btn_start_face.setText('启动')
+            QMessageBox.warning(
+                self, '脸部摄像头启动失败',
+                f'{self.face_rx.error}\n\n'
+                '请确认摄像头权限已开启。'
+            )
+
     def _on_start_body(self):
         if self.body_rx.is_running:
             self.body_rx.stop()
@@ -273,9 +306,8 @@ class TakePanel(QWidget):
                 QMessageBox.warning(
                     self, '录制为空',
                     f'本次录制（{mode}）没有捕获到任何数据帧。\n\n'
-                    '• 脸部数据为空 → 请先启动 OpenSeeFace 面部追踪\n'
-                    '  （运行 tools/start_openseeface.sh）\n'
-                    '• 身体数据为空 → 请先点击「启动」摄像头\n'
+                    '• 脸部数据为空 → 请先点击脸部摄像头「启动」\n'
+                    '• 身体数据为空 → 请先点击身体摄像头「启动」\n'
                     '  并确认摄像头权限已开启'
                 )
         else:
@@ -309,6 +341,7 @@ class TakePanel(QWidget):
             return
 
         def _replay():
+            from core.receiver import FaceData
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             frames = take['face_frames']
             if not frames:
@@ -320,17 +353,20 @@ class TakePanel(QWidget):
                 if dt > 0:
                     time.sleep(dt)
                 prev_t = fr['t']
+                fd = FaceData(
+                    pitch=fr['pitch'], yaw=fr['yaw'], roll=fr['roll'],
+                    eye_l=fr['eye_l'], eye_r=fr['eye_r'],
+                    brow_l=fr['brow_l'], brow_r=fr['brow_r'],
+                    mouth_open=fr['mouth_open'], mouth_form=fr['mouth_form'],
+                    conf=0.9, success=True,
+                )
+                self.face_rx.inject(fd)
                 payload = json.dumps({
                     'type': 'face',
-                    'pitch': fr['pitch'],
-                    'yaw': fr['yaw'],
-                    'roll': fr['roll'],
-                    'eye_l': fr['eye_l'],
-                    'eye_r': fr['eye_r'],
-                    'brow_l': fr['brow_l'],
-                    'brow_r': fr['brow_r'],
-                    'mouth_open': fr['mouth_open'],
-                    'mouth_form': fr['mouth_form'],
+                    'pitch': fr['pitch'], 'yaw': fr['yaw'], 'roll': fr['roll'],
+                    'eye_l': fr['eye_l'], 'eye_r': fr['eye_r'],
+                    'brow_l': fr['brow_l'], 'brow_r': fr['brow_r'],
+                    'mouth_open': fr['mouth_open'], 'mouth_form': fr['mouth_form'],
                 }).encode()
                 sock.sendto(payload, ('127.0.0.1', 11574))
             sock.close()
