@@ -50,7 +50,7 @@ class TakePanel(QWidget):
     def set_motion(self, motion_id: str):
         self._motion_id = motion_id
         motion = self.dataset.get_motion(motion_id)
-        self._motion_label.setText(f'动作：{motion.name if motion else "—"}')
+        self._motion_label.setText(f'Motion: {motion.name if motion else "—"}')
         self.refresh_takes()
 
     def refresh_takes(self):
@@ -71,7 +71,7 @@ class TakePanel(QWidget):
         layout.setContentsMargins(8, 8, 8, 8)
 
         # Motion label
-        self._motion_label = QLabel('动作：—')
+        self._motion_label = QLabel('Motion: —')
         self._motion_label.setStyleSheet('font-weight: bold; font-size: 14px;')
         layout.addWidget(self._motion_label)
 
@@ -85,7 +85,7 @@ class TakePanel(QWidget):
 
         # Table
         self._table = QTableWidget(0, 4)
-        self._table.setHorizontalHeaderLabels(['名称', '时长', '模式', '帧数(脸/身)'])
+        self._table.setHorizontalHeaderLabels(['Name', 'Duration', 'Mode', 'Frames(F/B)'])
         self._table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -93,9 +93,9 @@ class TakePanel(QWidget):
 
         # Take action buttons
         take_btns = QHBoxLayout()
-        self._btn_play = QPushButton('▶ 回放到 Teto')
-        self._btn_export = QPushButton('⬇ 导出')
-        self._btn_del_take = QPushButton('🗑 删除')
+        self._btn_play = QPushButton('▶ Replay to Teto')
+        self._btn_export = QPushButton('⬇ Export')
+        self._btn_del_take = QPushButton('🗑 Delete')
         for btn in (self._btn_play, self._btn_export, self._btn_del_take):
             take_btns.addWidget(btn)
         takes_layout.addLayout(take_btns)
@@ -104,13 +104,13 @@ class TakePanel(QWidget):
         self._btn_del_take.clicked.connect(self._on_delete_take)
 
         # Record group
-        rec_group = QGroupBox('录制')
+        rec_group = QGroupBox('Record')
         rec_layout = QVBoxLayout(rec_group)
 
         mode_row = QHBoxLayout()
-        mode_row.addWidget(QLabel('模式:'))
+        mode_row.addWidget(QLabel('Mode:'))
         self._mode_combo = QComboBox()
-        self._mode_combo.addItems(['🎭 仅脸部', '🕺 仅身体', '🎬 脸部 + 身体'])
+        self._mode_combo.addItems(['🎭 Face Only', '🕺 Body Only', '🎬 Face + Body'])
         self._mode_combo.setCurrentIndex(0)
         self._mode_combo.currentIndexChanged.connect(self._on_mode_changed)
         mode_row.addWidget(self._mode_combo)
@@ -118,12 +118,12 @@ class TakePanel(QWidget):
         rec_layout.addLayout(mode_row)
 
         face_row = QHBoxLayout()
-        face_row.addWidget(QLabel('脸部摄像头:'))
+        face_row.addWidget(QLabel('Face Camera:'))
         self._face_cam_combo = QComboBox()
         for i in range(5):
-            self._face_cam_combo.addItem(f'摄像头 {i}', i)
+            self._face_cam_combo.addItem(f'Camera {i}', i)
         self._face_cam_combo.setCurrentIndex(0)
-        self._btn_start_face = QPushButton('启动')
+        self._btn_start_face = QPushButton('Start')
         self._btn_start_face.clicked.connect(self._on_start_face)
         face_row.addWidget(self._face_cam_combo)
         face_row.addWidget(self._btn_start_face)
@@ -131,13 +131,13 @@ class TakePanel(QWidget):
         rec_layout.addLayout(face_row)
 
         body_row = QHBoxLayout()
-        body_row.addWidget(QLabel('身体摄像头:'))
+        body_row.addWidget(QLabel('Body Camera:'))
         self._cam_combo = QComboBox()
         for i in range(5):
-            self._cam_combo.addItem(f'摄像头 {i}', i)
+            self._cam_combo.addItem(f'Camera {i}', i)
         self._cam_combo.setCurrentIndex(0)
         self._cam_combo.currentIndexChanged.connect(self._on_cam_changed)
-        self._btn_start_body = QPushButton('启动')
+        self._btn_start_body = QPushButton('Start')
         self._btn_start_body.clicked.connect(self._on_start_body)
         body_row.addWidget(self._cam_combo)
         body_row.addWidget(self._btn_start_body)
@@ -145,7 +145,7 @@ class TakePanel(QWidget):
         rec_layout.addLayout(body_row)
 
         ctrl_row = QHBoxLayout()
-        self._btn_record = QPushButton('● 开始录制')
+        self._btn_record = QPushButton('● Start Recording')
         self._btn_record.setStyleSheet(
             'background:#e74c3c; color:white; font-weight:bold; padding:6px 16px;'
         )
@@ -159,22 +159,22 @@ class TakePanel(QWidget):
         self._btn_record.clicked.connect(self._on_record_clicked)
         takes_layout.addWidget(rec_group)
 
-        tabs.addTab(takes_tab, '录制 & Takes')
+        tabs.addTab(takes_tab, 'Record & Takes')
 
         # ── Live2D Preview (floating window, created lazily) ──────────
         self._preview_win = Live2DPreviewWindow(self.face_rx)
 
         # Preview + model-change row
         preview_row = QHBoxLayout()
-        self._btn_preview = QPushButton('🎭 打开 Teto 实时预览')
+        self._btn_preview = QPushButton('🎭 Open Teto Preview')
         self._btn_preview.setStyleSheet(
             'background:#0f3460; color:#e0e0e0; padding:5px 12px; border-radius:4px;'
         )
         self._btn_preview.clicked.connect(self._toggle_preview)
         preview_row.addWidget(self._btn_preview)
 
-        self._btn_change_model = QPushButton('换模型')
-        self._btn_change_model.setToolTip('选择 Live2D .model3.json 文件')
+        self._btn_change_model = QPushButton('Change Model')
+        self._btn_change_model.setToolTip('Select a Live2D .model3.json file')
         self._btn_change_model.clicked.connect(self._on_change_model)
         preview_row.addWidget(self._btn_change_model)
 
@@ -187,7 +187,7 @@ class TakePanel(QWidget):
 
         # ── Tab 2: Compare ────────────────────────────────────────────
         self._compare = CompareWidget(self.dataset)
-        tabs.addTab(self._compare, '对比图表')
+        tabs.addTab(self._compare, 'Compare')
 
     # ── Model helpers ─────────────────────────────────────────────────
 
@@ -198,8 +198,8 @@ class TakePanel(QWidget):
 
     def _on_change_model(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, '选择 Live2D 模型文件', '',
-            'Live2D 模型 (*.model3.json);;所有文件 (*)'
+            self, 'Select Live2D Model', '',
+            'Live2D Model (*.model3.json);;All Files (*)'
         )
         if path:
             self._preview_win.set_model(path)
@@ -212,10 +212,10 @@ class TakePanel(QWidget):
     def _toggle_preview(self):
         if self._preview_win.isVisible():
             self._preview_win.hide()
-            self._btn_preview.setText('🎭 打开 Teto 实时预览')
+            self._btn_preview.setText('🎭 Open Teto Preview')
         else:
             self._preview_win.show()
-            self._btn_preview.setText('🎭 关闭 Teto 实时预览')
+            self._btn_preview.setText('🎭 Close Teto Preview')
 
     # ── Mode / camera ─────────────────────────────────────────────────
 
@@ -231,44 +231,43 @@ class TakePanel(QWidget):
         if self.face_rx.mode == 'camera' and self.face_rx._running:
             self.face_rx.stop()
             self.face_rx.start_udp()
-            self._btn_start_face.setText('启动')
+            self._btn_start_face.setText('Start')
         else:
             idx = self._face_cam_combo.currentData()
             self.face_rx.start_camera(idx)
-            self._btn_start_face.setText('停止')
+            self._btn_start_face.setText('Stop')
             QTimer.singleShot(2000, self._check_face_error)
 
     def _check_face_error(self):
         if self.face_rx.error:
-            self._btn_start_face.setText('启动')
+            self._btn_start_face.setText('Start')
             QMessageBox.warning(
-                self, '脸部摄像头启动失败',
+                self, 'Face Camera Failed',
                 f'{self.face_rx.error}\n\n'
-                '请确认摄像头权限已开启。'
+                'Please check camera permissions.'
             )
 
     def _on_start_body(self):
         if self.body_rx.is_running:
             self.body_rx.stop()
-            self._btn_start_body.setText('启动')
+            self._btn_start_body.setText('Start')
         else:
             idx = self._cam_combo.currentData()
             self.body_rx.set_camera(idx)
             self.body_rx.start()
-            self._btn_start_body.setText('停止')
+            self._btn_start_body.setText('Stop')
             # Check for startup errors after 1.5 s
             QTimer.singleShot(1500, self._check_body_error)
 
     def _check_body_error(self):
-        """Called 1.5 s after clicking 启动; shows error if camera failed."""
+        """Called 1.5 s after clicking Start; shows error if camera failed."""
         if self.body_rx.error:
-            self._btn_start_body.setText('启动')
+            self._btn_start_body.setText('Start')
             QMessageBox.warning(
-                self, '摄像头启动失败',
+                self, 'Camera Failed',
                 f'{self.body_rx.error}\n\n'
-                '如果提示权限被拒绝，请前往：\n'
-                '「系统设置 → 隐私与安全性 → 摄像头」\n'
-                '为 Python 开启摄像头访问权限后重试。'
+                'Please check camera permissions:\n'
+                'System Settings → Privacy & Security → Camera'
             )
 
     # ── Recording ─────────────────────────────────────────────────────
@@ -283,13 +282,13 @@ class TakePanel(QWidget):
 
     def _on_record_clicked(self):
         if not self._motion_id:
-            QMessageBox.warning(self, '提示', '请先在左侧选择一个动作')
+            QMessageBox.warning(self, 'Notice', 'Please select a motion first')
             return
         if self.recorder.is_recording:
             # ── Stop ──────────────────────────────────────────────────
             frame_data = self.recorder.stop()
             self._rec_timer.stop()
-            self._btn_record.setText('● 开始录制')
+            self._btn_record.setText('● Start Recording')
             self._btn_record.setStyleSheet(
                 'background:#e74c3c; color:white; font-weight:bold; padding:6px 16px;'
             )
@@ -301,20 +300,19 @@ class TakePanel(QWidget):
                 if self.on_takes_changed:
                     self.on_takes_changed()
             else:
-                # No data captured — warn the user
                 mode = self._mode_combo.currentText()
                 QMessageBox.warning(
-                    self, '录制为空',
-                    f'本次录制（{mode}）没有捕获到任何数据帧。\n\n'
-                    '• 脸部数据为空 → 请先点击脸部摄像头「启动」\n'
-                    '• 身体数据为空 → 请先点击身体摄像头「启动」\n'
-                    '  并确认摄像头权限已开启'
+                    self, 'Empty Recording',
+                    f'No data frames captured ({mode}).\n\n'
+                    '• No face data → Click "Start" on Face Camera\n'
+                    '• No body data → Click "Start" on Body Camera\n'
+                    '  and check camera permissions'
                 )
         else:
             # ── Start ─────────────────────────────────────────────────
             self.recorder.start()
             self._rec_timer.start(100)
-            self._btn_record.setText('⏹ 停止录制')
+            self._btn_record.setText('⏹ Stop Recording')
             self._btn_record.setStyleSheet(
                 'background:#2ecc71; color:white; font-weight:bold; padding:6px 16px;'
             )
@@ -333,11 +331,11 @@ class TakePanel(QWidget):
             return
         idx = self._selected_take_index()
         if idx is None:
-            QMessageBox.warning(self, '提示', '请先选择一条 Take')
+            QMessageBox.warning(self, 'Notice', 'Please select a take first')
             return
         take = self.dataset.load_take(self._motion_id, idx)
         if not take or not take.get('face_frames'):
-            QMessageBox.information(self, '提示', '该 Take 没有脸部数据，无法回放')
+            QMessageBox.information(self, 'Notice', 'This take has no face data for replay')
             return
 
         def _replay():
@@ -376,11 +374,11 @@ class TakePanel(QWidget):
     def _on_export(self):
         idx = self._selected_take_index()
         if idx is None:
-            QMessageBox.warning(self, '提示', '请先选择一条 Take')
+            QMessageBox.warning(self, 'Notice', 'Please select a take first')
             return
         fmt, ok = QFileDialog.getSaveFileName(
-            self, '导出 Take', f'take_{idx:03d}',
-            'CSV 文件 (*.csv);;NumPy 压缩包 (*.npz);;JSON 文件 (*.json)'
+            self, 'Export Take', f'take_{idx:03d}',
+            'CSV Files (*.csv);;NumPy Archive (*.npz);;JSON Files (*.json)'
         )
         if not ok or not fmt:
             return
@@ -392,13 +390,13 @@ class TakePanel(QWidget):
             take = self.dataset.load_take(self._motion_id, idx)
             with open(fmt, 'w', encoding='utf-8') as f:
                 json.dump(take, f, ensure_ascii=False, indent=2)
-        QMessageBox.information(self, '完成', f'已导出到 {fmt}')
+        QMessageBox.information(self, 'Done', f'Exported to {fmt}')
 
     def _on_delete_take(self):
         idx = self._selected_take_index()
         if idx is None:
             return
-        reply = QMessageBox.question(self, '确认', f'删除 Take {idx:03d}？',
+        reply = QMessageBox.question(self, 'Confirm', f'Delete Take {idx:03d}?',
                                      QMessageBox.Yes | QMessageBox.No)
         if reply == QMessageBox.Yes:
             self.dataset.delete_take(self._motion_id, idx)

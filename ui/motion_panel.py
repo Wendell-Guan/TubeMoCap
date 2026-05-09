@@ -25,13 +25,13 @@ class MotionPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
 
-        title = QLabel('动作库')
+        title = QLabel('Motion Library')
         title.setStyleSheet('font-weight: bold; font-size: 14px;')
         layout.addWidget(title)
 
         # Search
         self._search = QLineEdit()
-        self._search.setPlaceholderText('搜索...')
+        self._search.setPlaceholderText('Search...')
         self._search.textChanged.connect(self._on_search)
         layout.addWidget(self._search)
 
@@ -45,9 +45,9 @@ class MotionPanel(QWidget):
         self._btn_add = QPushButton('+')
         self._btn_rename = QPushButton('Edit')
         self._btn_delete = QPushButton('Del')
-        self._btn_add.setToolTip('新建动作')
-        self._btn_rename.setToolTip('重命名')
-        self._btn_delete.setToolTip('删除')
+        self._btn_add.setToolTip('New motion')
+        self._btn_rename.setToolTip('Rename')
+        self._btn_delete.setToolTip('Delete')
         for btn in (self._btn_add, self._btn_rename, self._btn_delete):
             btn.setFixedHeight(30)
             btn_layout.addWidget(btn)
@@ -80,7 +80,7 @@ class MotionPanel(QWidget):
             self.motion_selected.emit(self._selected_id)
 
     def _on_add(self):
-        name, ok = QInputDialog.getText(self, '新建动作', '动作名称:')
+        name, ok = QInputDialog.getText(self, 'New Motion', 'Motion name:')
         if ok and name.strip():
             m = self.dataset.add_motion(name.strip())
             self._selected_id = m.id
@@ -93,7 +93,7 @@ class MotionPanel(QWidget):
         m = self.dataset.get_motion(self._selected_id)
         if not m:
             return
-        name, ok = QInputDialog.getText(self, '重命名', '新名称:', text=m.name)
+        name, ok = QInputDialog.getText(self, 'Rename', 'New name:', text=m.name)
         if ok and name.strip():
             self.dataset.rename_motion(self._selected_id, name.strip())
             self.refresh()
@@ -105,11 +105,11 @@ class MotionPanel(QWidget):
         if not m:
             return
         count = self.dataset.take_count(m.id)
-        msg = f'确认删除「{m.name}」'
+        msg = f'Delete "{m.name}"'
         if count:
-            msg += f' 及其 {count} 条录制'
-        msg += '？'
-        reply = QMessageBox.question(self, '确认删除', msg,
+            msg += f' and its {count} take(s)'
+        msg += '?'
+        reply = QMessageBox.question(self, 'Confirm Delete', msg,
                                      QMessageBox.Yes | QMessageBox.No)
         if reply == QMessageBox.Yes:
             self.dataset.delete_motion(self._selected_id)

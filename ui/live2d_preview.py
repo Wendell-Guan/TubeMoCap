@@ -133,7 +133,7 @@ class Live2DPreviewWindow(QWidget):
             None,
             Qt.Window | Qt.WindowStaysOnTopHint | Qt.WindowCloseButtonHint
         )
-        self.setWindowTitle('Teto — 实时预览')
+        self.setWindowTitle('Teto — Live Preview')
         self.resize(420, 600)
         self._face_rx = face_rx
         self._model_path = model_path
@@ -143,7 +143,7 @@ class Live2DPreviewWindow(QWidget):
         # Build a placeholder layout; the real canvas is inserted on first show
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
-        self._placeholder = QLabel('正在初始化 Live2D…')
+        self._placeholder = QLabel('Initializing Live2D…')
         self._placeholder.setAlignment(Qt.AlignCenter)
         self._placeholder.setStyleSheet('color:#888; font-size:13px; background:#1a1a2e;')
         self._layout.addWidget(self._placeholder)
@@ -170,8 +170,8 @@ class Live2DPreviewWindow(QWidget):
 
         if not os.path.exists(self._model_path):
             lbl = QLabel(
-                '模型文件不存在\n\n'
-                '请在 MoCap Studio 主界面\n点击「换模型」重新选择'
+                'Model file not found\n\n'
+                'Click "Change Model" in the\nMoCap Studio main window'
             )
             lbl.setAlignment(Qt.AlignCenter)
             lbl.setStyleSheet('color:#888; font-size:13px; background:#1a1a2e;')
@@ -185,12 +185,12 @@ class Live2DPreviewWindow(QWidget):
             self._layout.addWidget(self._canvas)
             print('[Live2DPreview] canvas added to window')
         except ImportError:
-            lbl = QLabel('live2d-py 未安装\n\npip install live2d-py')
+            lbl = QLabel('live2d-py not installed\n\npip install live2d-py')
             lbl.setAlignment(Qt.AlignCenter)
             lbl.setStyleSheet('color:#e74c3c; font-size:13px;')
             self._layout.addWidget(lbl)
         except Exception as e:
-            lbl = QLabel(f'Live2D 初始化失败\n\n{e}')
+            lbl = QLabel(f'Live2D initialization failed\n\n{e}')
             lbl.setAlignment(Qt.AlignCenter)
             lbl.setStyleSheet('color:#e74c3c; font-size:13px; background:#1a1a2e;')
             self._layout.addWidget(lbl)
